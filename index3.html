@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="sl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urbani Prevajalec: Ljubljana 4D</title>
+
+    <!-- Mapbox GL JS knjižnice za interaktivni 3D zemljevid -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="logo-sokci.png">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
+    <!-- Moderni Google Fonti (Inter za čist, profesionalen izgled) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome za čudovite ikone -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* CSS SPREMENLJIVKE (Design System) */
+        :root {
+            --bg-dark: #0f172a;
+            /* Glavno ozadje */
+            --panel-bg: #1e293b;
+            /* Ozadje desnega panela */
+            --accent-green: #10b981;
+            /* GIS/Cyber poudarek (zelena) */
+            --accent-purple: #8b5cf6;
+            /* AI poudarek (vijolična) */
+            --text-main: #f8fafc;
+            /* Glavni tekst */
+            --text-muted: #94a3b8;
+            /* Sekundarni tekst */
+            --border-color: #334155;
+            /* Obrobe panelov */
+        }
+
+        /* OSNOVNE NASTAVITVE */
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden;
+            /* Preprečimo scrollanje celotne strani */
+        }
+
+        /* GLAVNA POSTAVITEV (Dashboard) */
+        .dashboard {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* LEVA STRAN: ZEMLJEVID (70%) */
+        .map-container {
+            width: 70%;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Zgornji napis na zemljevidu (Header) */
+        .app-header {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.85);
+            /* Glassmorphism efekt */
+            backdrop-filter: blur(10px);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            z-index: 10;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .app-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            /* Gradient za lepši vizualni učinek naslova */
+            background: linear-gradient(to right, var(--accent-green), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 4D ČASOVNI DRSNIK (Time Slider) */
+        .slider-wrapper {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(12px);
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 1px solid var(--border-color);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            width: 60%;
+            max-width: 600px;
+        }
+
+        .slider-wrapper span {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        input[type=range] {
+            flex-grow: 1;
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 3px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: var(--accent-purple);
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -7px;
+            box-shadow: 0 0 10px var(--accent-purple);
+            transition: transform 0.2s;
+        }
+
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            /* Mikro-animacija na hover */
+        }
+
+        /* DESNA STRAN: STRANSKI PANEL (30%) */
+        .side-panel {
+            width: 30%;
+            height: 100%;
+            background-color: var(--panel-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.5);
+            z-index: 20;
+        }
+
+        .panel-section {
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Razdelitev panela na zgornji in spodnji del */
+        .section-top {
+            flex: 0 0 30%;
+            /* Fiksno 30% višine */
+            border-bottom: 1px solid var(--border-color);
+            min-height: 200px;
+        }
+
+        .section-bottom {
+            flex: 1;
+            /* Zavzame preostalih 70% */
+            background: rgba(15, 23, 42, 0.3);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            color: var(--accent-green);
+        }
+
+        /* PRIKAZ SUROVIH PODATKOV (JSON Code Block) */
+        .raw-data-container {
+            background-color: #020617;
+            /* Zelo temno ozadje za kodo */
+            border-radius: 8px;
+            padding: 15px;
+            height: 250px;
+            overflow-y: auto;
+            border: 1px solid #1e293b;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        pre {
+            margin: 0;
+            color: #4ade80;
+            /* "Hacker" zelena barva za JSON */
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .empty-state {
+            color: #64748b;
+            font-style: italic;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        /* GUMB ZA GENERIRANJE AI RAZLAGE */
+        .btn-generate {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent-purple), #4f46e5);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+        }
+
+        .btn-generate:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-generate:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            box-shadow: none;
+            color: #94a3b8;
+        }
+
+        /* NALAGALNIK (Spinner) ZA AI API KLIC */
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* POLJE ZA PRIKAZ AI TEKSTA */
+        .explanation-box {
+            background-color: rgba(15, 23, 42, 0.6);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid var(--accent-purple);
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .explanation-title {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .explanation-content {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+        }
+
+        /* UTRIPAJOČI KAZALEC ZA TYPEWRITER EFEKT */
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background-color: var(--accent-green);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* PRILAGOJEN SCROLLBAR (Za modernejši videz) */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* OVERRIDE MAPBOX POPUP STILOV */
+        .mapboxgl-popup-content {
+            background: #1e293b;
+            color: white;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            padding: 15px;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+            border-top-color: #334155;
+        }
+
+        .popup-title {
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 5px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 5px;
+        }
+
+        /* STRANSKI MENI ZA FILTRE (Burger in Sidebar) */
+        .burger-btn {
+            position: absolute;
+            top: 20px;
+            right: 80px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            color: var(--accent-purple);
+            border-radius: 12px;
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 40;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .burger-btn:hover {
+            transform: scale(1.05);
+            color: var(--accent-green);
+        }
+
+        .filter-sidebar {
+            position: absolute;
+            top: 0;
+            left: -380px;
+            /* Skrito zunaj ekrana */
+            width: 350px;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(15px);
+            border-right: 1px solid var(--border-color);
+            z-index: 50;
+            transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 25px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            box-shadow: 15px 0 40px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .filter-sidebar.open {
+            left: 0;
+        }
+
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 10px;
+        }
+
+        .filter-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-header h2 i {
+            color: var(--accent-purple);
+        }
+
+        .close-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: #ef4444;
+        }
+
+        .filter-group {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .filter-group label.group-title {
+            display: block;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: var(--accent-green);
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .range-value {
+            float: right;
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        .filter-slider {
+            width: 100%;
+            margin-bottom: 10px;
+            accent-color: var(--accent-purple);
+        }
+
+        .slider-row {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .slider-row span {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .checkbox-item input {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent-green);
+            cursor: pointer;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 10px 15px;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .filter-select:focus {
+            border-color: var(--accent-purple);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <!-- LEVI DEL: ZEMLJEVID IN KONTROLE (70%) -->
+        <div class="map-container">
+
+            <!-- Burger Gumb za Filtre (Zgoraj Desno nad mapo) -->
+            <button id="burgerBtn" class="burger-btn" title="Odpri filtre">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+
+            <!-- Stranski Meni s Filtri (Skrit na levi) -->
+            <div id="filterSidebar" class="filter-sidebar">
+                <div class="filter-header">
+                    <h2><i class="fa-solid fa-sliders"></i> Napredni Filtri</h2>
+                    <button id="closeFilterBtn" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <!-- Leto Izgradnje -->
+                <div class="filter-group">
+                    <label class="group-title">Leto izgradnje</label>
+                    <div class="slider-row">
+                        <span>Od leta: <span id="yearMinVal" class="range-value">1800</span></span>
+                        <input type="range" id="filterYearMin" class="filter-slider" min="1800" max="2026" value="1800">
+                    </div>
+                    <div class="slider-row" style="margin-bottom:0;">
+                        <span>Do leta: <span id="yearMaxVal" class="range-value">2026</span></span>
+                        <input type="range" id="filterYearMax" class="filter-slider" min="1800" max="2026" value="2026">
+                    </div>
+                </div>
+
+                <!-- Število Nadstropij -->
+                <div class="filter-group">
+                    <label class="group-title">Število nadstropij</label>
+                    <div class="slider-row">
+                        <span>Od: <span id="floorMinVal" class="range-value">1</span></span>
+                        <input type="range" id="filterFloorMin" class="filter-slider" min="1" max="20" value="1">
+                    </div>
+                    <div class="slider-row" style="margin-bottom:0;">
+                        <span>Do (ali več): <span id="floorMaxVal" class="range-value">20+</span></span>
+                        <input type="range" id="filterFloorMax" class="filter-slider" min="1" max="20" value="20">
+                    </div>
+                </div>
+
+                <!-- Bruto Tlorisna Površina -->
+                <div class="filter-group">
+                    <label class="group-title">Bruto Tlorisna Površina (m²)</label>
+                    <div class="slider-row">
+                        <span>Od: <span id="areaMinVal" class="range-value">0</span></span>
+                        <input type="range" id="filterAreaMin" class="filter-slider" min="0" max="5000" step="50"
+                            value="0">
+                    </div>
+                    <div class="slider-row" style="margin-bottom:0;">
+                        <span>Do (ali več): <span id="areaMaxVal" class="range-value">5000+</span></span>
+                        <input type="range" id="filterAreaMax" class="filter-slider" min="0" max="5000" step="50"
+                            value="5000">
+                    </div>
+                </div>
+
+                <!-- Komunalni Priključki -->
+                <div class="filter-group">
+                    <label class="group-title">Komunalni Priključki</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="filterWater"> Vodovod
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="filterSewage"> Kanalizacija
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="filterElec"> Elektrika
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="filterGas"> Plin
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Poplavna Ogroženost -->
+                <div class="filter-group">
+                    <label class="group-title">Poplavna Ogroženost</label>
+                    <select id="filterFloodRisk" class="filter-select">
+                        <option value="all">Vse stavbe</option>
+                        <option value="0">Niso ogrožene</option>
+                        <option value="3">Pogoste poplave</option>
+                        <option value="2">Redke poplave</option>
+                        <option value="1">Zelo redke poplave</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Naslov/Header in Iskalnik -->
+            <div class="app-header">
+                <h1><i class="fa-solid fa-cube"></i> Urbani Prevajalec: Ljubljana 4D</h1>
+                <div class="search-container" style="margin-top: 15px; display: flex; gap: 10px;">
+                    <input type="text" id="addressSearch" placeholder="Vnesi naslov (npr. Slovenska 1)"
+                        style="padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(15, 23, 42, 0.7); color: white; width: 280px; font-family: 'Inter', sans-serif;">
+                    <button id="searchBtn"
+                        style="padding: 10px 20px; border-radius: 6px; border: none; background: var(--accent-green); color: white; cursor: pointer; font-weight: bold; font-family: 'Inter', sans-serif; transition: background 0.2s;"><i
+                            class="fa-solid fa-search"></i> Išči</button>
+                </div>
+            </div>
+
+            <!-- Kontejner za Mapbox -->
+            <div id="map"></div>
+
+            <!-- Časovni Drsnik 2024 - 2030 -->
+            <div class="slider-wrapper">
+                <span id="yearDisplayLeft">Preteklost</span>
+                <input type="range" id="timeSlider" min="2010" max="2028" value="2010" step="1">
+                <span id="yearDisplayRight">Prihodnost</span>
+                <div style="margin-left: 10px; padding-left: 20px; border-left: 1px solid var(--border-color); font-weight: bold; font-size: 1.5rem; color: var(--text-main); min-width: 140px;"
+                    id="currentYearDisplay">Preteklost</div>
+            </div>
+        </div>
+
+        <!-- DESNI DEL: STRANSKI PANEL Z VSEBINO (30%) -->
+        <div class="side-panel">
+
+            <!-- ZGORNJI ODSEK: Prikaz Surovih GIS Podatkov -->
+            <div class="panel-section section-top">
+                <h2 class="section-title"><i class="fa-solid fa-database"></i> Surovi GIS Podatki</h2>
+                <div class="raw-data-container">
+                    <pre
+                        id="rawDataDisplay"><div class="empty-state">Kliknite na parcelo na zemljevidu za prikaz GIS podatkov.</div></pre>
+                </div>
+            </div>
+
+            <!-- SPODNJI ODSEK: AI Pomočnik -->
+            <div class="panel-section section-bottom">
+                <h2 class="section-title"><i class="fa-solid fa-microchip"></i> AI pomočnik za uporabnika</h2>
+
+                <button id="generateBtn" class="btn-generate" disabled>
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span id="btnText">Generiraj AI razlago</span>
+                    <div id="spinner" class="loading-spinner"></div>
+                </button>
+
+                <div class="explanation-box">
+                    <div class="explanation-title">
+                        <i class="fa-solid fa-comment-dots"></i> Razlaga za uporabnika
+                    </div>
+                    <div class="explanation-content"><span id="aiOutput"
+                            style="color: var(--text-muted); font-style: italic;">Sistem je pripravljen. Izberite
+                            parcelo na zemljevidu in kliknite gumb za generiranje razumljive razlage.</span><span
+                            id="cursor" class="cursor" style="display: none;"></span></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- LOGIKA (JavaScript) -->
+    <script>
+        // --- 1. ZAČETNE NASTAVITVE IN PODATKI ---
+
+        // SECURITY CRITICAL: Zamenjaj ta placeholder s svojim dejanskim Mapbox ključem
+        mapboxgl.accessToken = 'mapboxAPIKEY';
+
+        // --- 2. INICIALIZACIJA ZEMLJEVIDA ---
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11', // Mapbox Dark mode baza
+            center: [14.5058, 46.0569], // Koordinate Ljubljana
+            zoom: 14.5,
+            pitch: 60, // 3D perspektiva
+            bearing: -20,
+            antialias: true
+        });
+
+        // Dodaj kontrole za navigacijo (zoom)
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+        let selectedParcelId = null;
+        let selectedParcelData = null;
+
+        // --- 3. NALAGANJE SLOJEV IN PODATKOV V MAPBOX ---
+        map.on('load', () => {
+            // A. Dinamično nalaganje vseh .geojson datotek iz mape public
+            const publicFiles = [
+                //"izvozOPT_tocke.geojson",
+                //"izvozparcele.geojson",
+                //"izvozkanalizacija_linije.geojson",
+                //"izvozplin_linije.geojson",
+                "izvozpoplave_pogoste.geojson",
+                "izvozvpripravi_poly.geojson",
+                "izvozpoplave_redke.geojson",
+                "izvozpoplave_zeloredke.geojson"
+
+
+
+            ];
+
+            publicFiles.forEach(file => {
+                const sourceId = file.replace('.geojson', '-src');
+                map.addSource(sourceId, {
+                    'type': 'geojson',
+                    'data': `./public123/${file}?v=${new Date().getTime()}`
+                });
+
+                let type = 'fill';
+                let paint = {};
+
+                if (file.includes('linije')) {
+                    type = 'line';
+                    paint = { 'line-color': '#3b82f6', 'line-width': 2, 'line-opacity': 0.8 };
+                } else if (file.includes('poplave')) {
+                    type = 'fill';
+                    paint = { 'fill-color': '#00d4ff', 'fill-opacity': 0, 'fill-outline-color': 'rgba(0,0,0,0)' }; // Nevidno, a na voljo za query
+                } else {
+                    type = 'fill';
+                    paint = { 'fill-color': '#94a3b8', 'fill-opacity': 0.2, 'fill-outline-color': '#475569' };
+                }
+
+                map.addLayer({
+                    'id': file.replace('.geojson', '-layer'),
+                    'type': type,
+                    'source': sourceId,
+                    'paint': paint
+                });
+            });
+
+            // B. Dodamo obstoječe 3D stavbe iz Mapboxa za boljši kontekst mesta
+            map.addLayer({
+                'id': '3d-buildings',
+                'source': 'composite',
+                'source-layer': 'building',
+                'filter': ['==', 'extrude', 'true'],
+                'type': 'fill-extrusion',
+                'minzoom': 15,
+                'paint': {
+                    'fill-extrusion-color': '#1e293b',
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': ['get', 'min_height'],
+                    'fill-extrusion-opacity': 0.5
+                }
+            });
+
+            // C. Glavni 4D stavbni sloj (nadomešča prejšnje fake 'parcele')
+            map.addSource('stavbe-src', {
+                'type': 'geojson',
+                'data': `./public123/izvozzdruzena_visina_katasterstavb.geojson?v=${new Date().getTime()}`,
+                'generateId': true
+            });
+
+            map.addLayer({
+                'id': 'stavbe-fill',
+                'type': 'fill',
+                'source': 'stavbe-src',
+                'paint': {
+                    'fill-color': [
+                        'case',
+                        ['boolean', ['feature-state', 'clicked'], false],
+                        '#8b5cf6',
+                        ['<=', ['coalesce', ['get', 'LETO_IZGRA'], 2026], 2010],
+                        '#10b981',
+                        '#eab308'
+                    ],
+                    'fill-opacity': 0.4
+                }
+            });
+
+            map.addLayer({
+                'id': 'stavbe-line',
+                'type': 'line',
+                'source': 'stavbe-src',
+                'paint': {
+                    'line-color': [
+                        'case',
+                        ['boolean', ['feature-state', 'clicked'], false],
+                        '#a78bfa',
+                        '#34d399'
+                    ],
+                    'line-width': 3
+                }
+            });
+
+            map.addLayer({
+                'id': 'stavbe-3d',
+                'type': 'fill-extrusion',
+                'source': 'stavbe-src',
+                'paint': {
+                    'fill-extrusion-color': [
+                        'case',
+                        ['boolean', ['feature-state', 'clicked'], false],
+                        '#8b5cf6',
+                        ['<=', ['coalesce', ['get', 'LETO_IZGRA'], 2026], 2010],
+                        '#10b981',
+                        '#eab308'
+                    ],
+                    'fill-extrusion-height': [
+                        '*',
+                        ['let',
+                            'raw_h2', ['to-number', ['coalesce', ['get', 'VISINA_H2'], 0]],
+                            'raw_h3', ['to-number', ['coalesce', ['get', 'VISINA_H3'], 0]],
+                            ['max', 0.2,
+                                ['min', 150,
+                                    ['case',
+                                        ['all', ['>', ['var', 'raw_h2'], 0], ['>', ['var', 'raw_h3'], 0]],
+                                        ['-', ['var', 'raw_h2'], ['var', 'raw_h3']],
+                                        ['>', ['var', 'raw_h2'], 200],
+                                        ['-', ['var', 'raw_h2'], 295],
+                                        ['>', ['var', 'raw_h2'], 0],
+                                        ['var', 'raw_h2'],
+                                        7
+                                    ]
+                                ]
+                            ]
+                        ],
+                        ['max', 0, ['min', 1, ['/', ['-', 2010, ['-', ['coalesce', ['get', 'LETO_IZGRA'], 2026], 5]], 5]]]
+                    ],
+                    'fill-extrusion-base': 0,
+                    'fill-extrusion-opacity': 0.8
+                }
+            });
+
+            // --- 4. INTERAKTIVNOST ZEMLJEVIDA (KLIKANJE) ---
+            map.on('click', 'stavbe-3d', async (e) => {
+                if (e.features.length > 0) {
+                    const feature = e.features[0];
+
+                    if (selectedParcelId !== null) {
+                        map.setFeatureState(
+                            { source: 'stavbe-src', id: selectedParcelId },
+                            { clicked: false }
+                        );
+                    }
+
+                    selectedParcelId = feature.id;
+
+                    // PREVERJANJE POPLAV IN POTRESOV NA LOKACIJI
+                    // Dinamično poiščemo vse aktivne hazard plasti, da ne pride do napake, če katera manjka
+                    const activeHazardLayers = [
+                        'izvozpoplave_pogoste-layer',
+                        'izvozpoplave_redke-layer',
+                        'izvozpoplave_zeloredke-layer'
+                    ].filter(id => map.getLayer(id));
+
+                    const hazards = map.queryRenderedFeatures(e.point, {
+                        layers: activeHazardLayers
+                    });
+
+                    // Iščemo poplave po PRIORITETI: Pogoste > Redke > Zelo redke
+                    const floodPogoste = hazards.find(h => h.layer.id === 'izvozpoplave_pogoste-layer');
+                    const floodRedke = hazards.find(h => h.layer.id === 'izvozpoplave_redke-layer');
+                    const floodZeloRedke = hazards.find(h => h.layer.id === 'izvozpoplave_zeloredke-layer');
+
+                    const floodFeature = floodPogoste || floodRedke || floodZeloRedke;
+                    const inFloodZone = !!floodFeature;
+
+                    // Dobimo točen opis poplav (iz različnih možnih fieldov)
+                    const floodType = floodFeature ? (floodFeature.properties.PP_IME || floodFeature.properties.RP_IME || floodFeature.properties.ZR_IME || 'Da') : null;
+
+                    // Reverse Geocoding za pridobitev naslova iz koordinat
+                    let addressName = 'Neznan naslov';
+                    try {
+                        const geoUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${e.lngLat.lng},${e.lngLat.lat}.json?access_token=${mapboxgl.accessToken}&language=sl`;
+                        const geoRes = await fetch(geoUrl);
+                        const geoData = await geoRes.json();
+                        if (geoData.features && geoData.features.length > 0) {
+                            // Vzamemo prvi zadetek, ki je običajno najbolj natančen (naslov)
+                            addressName = geoData.features[0].place_name.split(',')[0];
+                        }
+                    } catch (err) {
+                        console.error("Geocoding error:", err);
+                    }
+
+                    selectedParcelData = {
+                        ...feature.properties,
+                        naslov_human: addressName,
+                        is_flood_zone: inFloodZone,
+                        flood_type: floodType
+                    };
+
+                    map.setFeatureState(
+                        { source: 'stavbe-src', id: selectedParcelId },
+                        { clicked: true }
+                    );
+
+                    const hazardHtml = `
+                        <div style="margin-top:5px; font-size:11px;">
+                            ${inFloodZone ? `<span style="color:#00d4ff;">● Poplave: ${floodType}</span>` : '<span style="color:#666;">○ Ni poplavno</span>'}
+                        </div>
+                    `;
+
+                    const yearIzgra = feature.properties.LETO_IZGRA || 'Neznano';
+                    const yearObnov = feature.properties.LETO_OBNOV || feature.properties.LETO_OBNO0;
+                    const renovationHtml = (yearObnov && yearObnov !== 'null' && yearObnov !== 0) ? `<div>Leto obnove: ${yearObnov}</div>` : '';
+
+                    new mapboxgl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(`
+                            <div class="popup-title">${addressName}</div>
+                            <div>Leto izgradnje: ${yearIzgra}</div>
+                            ${renovationHtml}
+                            ${hazardHtml}
+                            <div style="margin-top:8px; font-size:10px; color:#aaa;">Kliknite 'Generiraj AI razlago' na desni.</div>
+                        `)
+                        .addTo(map);
+
+                    updateRawDataDisplay(selectedParcelData);
+
+                    const btn = document.getElementById('generateBtn');
+                    btn.disabled = false;
+
+                    document.getElementById('aiOutput').innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Pripravljeno na prevod za izbrano parcelo...</span>';
+                    document.getElementById('aiOutput').style.color = 'var(--text-main)';
+                    document.getElementById('cursor').style.display = 'none';
+                }
+            });
+
+            map.on('mouseenter', 'stavbe-3d', () => { map.getCanvas().style.cursor = 'pointer'; });
+            map.on('mouseleave', 'stavbe-3d', () => { map.getCanvas().style.cursor = ''; });
+        });
+
+        // --- 4.5. ISKALNIK NASLOVOV IN SIMULACIJA KLIKA ---
+        const addressSearch = document.getElementById('addressSearch');
+        const searchBtn = document.getElementById('searchBtn');
+
+        async function searchAndSelectAddress() {
+            const query = addressSearch.value;
+            if (!query) return;
+
+            // Uporabimo Mapbox Geocoding API z omejitvijo na Ljubljano
+            // Bounding box za Ljubljano približno: 14.35, 45.95 do 14.65, 46.15
+            const geocodingUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&bbox=14.35,45.95,14.65,46.15&limit=1`;
+
+            try {
+                // Pošljemo API klic
+                const response = await fetch(geocodingUrl);
+                const data = await response.json();
+
+                if (data.features && data.features.length > 0) {
+                    const geoFeature = data.features[0];
+                    const center = geoFeature.center;
+                    const addressName = geoFeature.place_name.split(',')[0];
+
+                    // 1. Zumiraj na lokacijo (Mapbox FlyTo)
+                    map.flyTo({
+                        center: center,
+                        zoom: 18, // Bližnji zoom za stavbe
+                        pitch: 60,
+                        essential: true
+                    });
+
+                    map.once('moveend', () => {
+                        const point = map.project(center);
+                        const features = map.queryRenderedFeatures(point, {
+                            layers: ['stavbe-3d']
+                        });
+
+                        if (features.length > 0) {
+                            const buildingFeature = features[0];
+
+                            if (selectedParcelId !== null) {
+                                map.setFeatureState({ source: 'stavbe-src', id: selectedParcelId }, { clicked: false });
+                            }
+                            selectedParcelId = buildingFeature.id;
+
+                            // Hazard checking
+                            const activeHazardLayers = [
+                                'izvozpoplave_pogoste-layer',
+                                'izvozpoplave_redke-layer',
+                                'izvozpoplave_zeloredke-layer'
+                            ].filter(id => map.getLayer(id));
+
+                            const hazards = map.queryRenderedFeatures(point, { layers: activeHazardLayers });
+                            const floodPogoste = hazards.find(h => h.layer.id === 'izvozpoplave_pogoste-layer');
+                            const floodRedke = hazards.find(h => h.layer.id === 'izvozpoplave_redke-layer');
+                            const floodZeloRedke = hazards.find(h => h.layer.id === 'izvozpoplave_zeloredke-layer');
+
+                            const floodFeature = floodPogoste || floodRedke || floodZeloRedke;
+                            const floodType = floodFeature ? (floodFeature.properties.PP_IME || floodFeature.properties.RP_IME || floodFeature.properties.ZR_IME || 'Da') : null;
+
+                            selectedParcelData = {
+                                ...buildingFeature.properties,
+                                naslov_human: addressName,
+                                is_flood_zone: !!floodFeature,
+                                flood_type: floodType
+                            };
+
+                            map.setFeatureState(
+                                { source: 'stavbe-src', id: selectedParcelId },
+                                { clicked: true }
+                            );
+
+                            const hazardHtml = `
+                                <div style="margin-top:5px; font-size:11px;">
+                                    ${!!floodFeature ? `<span style="color:#00d4ff;">● Poplave: ${floodType}</span>` : '<span style="color:#666;">○ Ni poplavno</span>'}
+                                </div>
+                            `;
+
+                            const yearIzgra = buildingFeature.properties.LETO_IZGRA || 'Neznano';
+                            const yearObnov = buildingFeature.properties.LETO_OBNOV || buildingFeature.properties.LETO_OBNO0;
+                            const renovationHtml = (yearObnov && yearObnov !== 'null' && yearObnov !== 0) ? `<div>Leto obnove: ${yearObnov}</div>` : '';
+
+                            new mapboxgl.Popup()
+                                .setLngLat(center)
+                                .setHTML(`
+                                    <div class="popup-title">${addressName}</div>
+                                    <div>Leto izgradnje: ${yearIzgra}</div>
+                                    ${renovationHtml}
+                                    ${hazardHtml}
+                                    <div style="margin-top:8px; font-size:10px; color:#aaa;">Kliknite 'Generiraj AI razlago' na desni.</div>
+                                `)
+                                .addTo(map);
+
+                            updateRawDataDisplay(selectedParcelData);
+                            document.getElementById('generateBtn').disabled = false;
+                        }
+                    });
+                } else {
+                    alert("Naslova žal nismo našli v Ljubljani. Poskusite znova (npr. 'Slovenska cesta 1').");
+                }
+            } catch (error) {
+                console.error("Napaka pri iskanju:", error);
+            }
+        }
+
+        // Klici ob kliku na gumb ali ob pritisku tipke Enter
+        searchBtn.addEventListener('click', searchAndSelectAddress);
+        addressSearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchAndSelectAddress();
+        });
+
+        // --- 5. LOGIKA 4D ČASOVNEGA DRSNIKA ---
+        const slider = document.getElementById('timeSlider');
+        const currentYearDisplay = document.getElementById('currentYearDisplay');
+
+        slider.addEventListener('input', (e) => {
+            const year = parseInt(e.target.value);
+
+            let displayText = year;
+            if (year === 2010) displayText = "Preteklost";
+            else if (year === 2025) displayText = "Sedanjost";
+            else if (year === 2028) displayText = "Prihodnost";
+
+            currentYearDisplay.textContent = displayText;
+
+            if (map.getLayer('stavbe-3d')) {
+                map.setPaintProperty('stavbe-3d', 'fill-extrusion-height', [
+                    '*',
+                    ['let',
+                        'raw_h2', ['to-number', ['coalesce', ['get', 'VISINA_H2'], 0]],
+                        'raw_h3', ['to-number', ['coalesce', ['get', 'VISINA_H3'], 0]],
+                        ['max', 0.2,
+                            ['min', 150,
+                                ['case',
+                                    ['all', ['>', ['var', 'raw_h2'], 0], ['>', ['var', 'raw_h3'], 0]],
+                                    ['-', ['var', 'raw_h2'], ['var', 'raw_h3']],
+                                    ['>', ['var', 'raw_h2'], 200],
+                                    ['-', ['var', 'raw_h2'], 295],
+                                    ['>', ['var', 'raw_h2'], 0],
+                                    ['var', 'raw_h2'],
+                                    7
+                                ]
+                            ]
+                        ]
+                    ],
+                    ['max', 0, ['min', 1, ['/', ['-', year, ['-', ['coalesce', ['get', 'LETO_IZGRA'], 2026], 5]], 5]]]
+                ]);
+
+                map.setPaintProperty('stavbe-3d', 'fill-extrusion-color', [
+                    'case',
+                    ['boolean', ['feature-state', 'clicked'], false],
+                    '#8b5cf6',
+                    ['<=', ['coalesce', ['get', 'LETO_IZGRA'], 2026], year],
+                    '#10b981',
+                    '#eab308'
+                ]);
+            }
+
+            if (map.getLayer('stavbe-fill')) {
+                map.setPaintProperty('stavbe-fill', 'fill-color', [
+                    'case',
+                    ['boolean', ['feature-state', 'clicked'], false],
+                    '#8b5cf6',
+                    ['<=', ['coalesce', ['get', 'LETO_IZGRA'], 2026], year],
+                    '#10b981',
+                    '#eab308'
+                ]);
+            }
+        });
+
+        // --- 6. LOGIKA ZA STRANSKI MENI IN NAPREDNE FILTRE ---
+        const burgerBtn = document.getElementById('burgerBtn');
+        const filterSidebar = document.getElementById('filterSidebar');
+        const closeFilterBtn = document.getElementById('closeFilterBtn');
+
+        // Toggle odpiranje/zapiranje stranskega menija z animacijo
+        burgerBtn.addEventListener('click', () => {
+            filterSidebar.classList.toggle('open');
+        });
+        closeFilterBtn.addEventListener('click', () => {
+            filterSidebar.classList.remove('open');
+        });
+
+        // Povezava DOM elementov filtrov
+        const filterInputs = {
+            yearMin: document.getElementById('filterYearMin'),
+            yearMax: document.getElementById('filterYearMax'),
+            floorMin: document.getElementById('filterFloorMin'),
+            floorMax: document.getElementById('filterFloorMax'),
+            areaMin: document.getElementById('filterAreaMin'),
+            areaMax: document.getElementById('filterAreaMax'),
+            water: document.getElementById('filterWater'),
+            sewage: document.getElementById('filterSewage'),
+            elec: document.getElementById('filterElec'),
+            gas: document.getElementById('filterGas'),
+            floodRisk: document.getElementById('filterFloodRisk')
+        };
+
+        // Funkcije za posodabljanje prikaza vrednosti na UI ob vlečenju drsnikov
+        filterInputs.yearMin.addEventListener('input', (e) => {
+            if (parseInt(e.target.value) > parseInt(filterInputs.yearMax.value)) filterInputs.yearMax.value = e.target.value;
+            document.getElementById('yearMinVal').innerText = e.target.value;
+            document.getElementById('yearMaxVal').innerText = filterInputs.yearMax.value;
+        });
+        filterInputs.yearMax.addEventListener('input', (e) => {
+            if (parseInt(e.target.value) < parseInt(filterInputs.yearMin.value)) filterInputs.yearMin.value = e.target.value;
+            document.getElementById('yearMaxVal').innerText = e.target.value;
+            document.getElementById('yearMinVal').innerText = filterInputs.yearMin.value;
+        });
+
+        filterInputs.floorMin.addEventListener('input', (e) => {
+            if (parseInt(e.target.value) > parseInt(filterInputs.floorMax.value)) filterInputs.floorMax.value = e.target.value;
+            document.getElementById('floorMinVal').innerText = e.target.value;
+            document.getElementById('floorMaxVal').innerText = filterInputs.floorMax.value == 20 ? '20+' : filterInputs.floorMax.value;
+        });
+        filterInputs.floorMax.addEventListener('input', (e) => {
+            if (parseInt(e.target.value) < parseInt(filterInputs.floorMin.value)) filterInputs.floorMin.value = e.target.value;
+            document.getElementById('floorMaxVal').innerText = e.target.value == 20 ? '20+' : e.target.value;
+            document.getElementById('floorMinVal').innerText = filterInputs.floorMin.value;
+        });
+
+        filterInputs.areaMin.addEventListener('input', (e) => {
+            if (parseInt(e.target.value) > parseInt(filterInputs.areaMax.value)) filterInputs.areaMax.value = e.target.value;
+            document.getElementById('areaMinVal').innerText = e.target.value;
+            document.getElementById('areaMaxVal').innerText = filterInputs.areaMax.value == 5000 ? '5000+' : filterInputs.areaMax.value;
+        });
+        filterInputs.areaMax.addEventListener('input', (e) => {
+            if (parseInt(e.target.value) < parseInt(filterInputs.areaMin.value)) filterInputs.areaMin.value = e.target.value;
+            document.getElementById('areaMaxVal').innerText = e.target.value == 5000 ? '5000+' : e.target.value;
+            document.getElementById('areaMinVal').innerText = filterInputs.areaMin.value;
+        });
+
+        // GLAVNA FUNKCIJA ZA APLICIRANJE MAPBOX FILTRA
+        function applyMapboxFilters() {
+            const yMin = parseInt(filterInputs.yearMin.value);
+            const yMax = parseInt(filterInputs.yearMax.value);
+            const fMin = parseInt(filterInputs.floorMin.value);
+            const fMax = parseInt(filterInputs.floorMax.value);
+            const aMin = parseFloat(filterInputs.areaMin.value);
+            const aMax = parseFloat(filterInputs.areaMax.value);
+            const floodRisk = filterInputs.floodRisk.value;
+
+            // Osnova: Vsi pogoji morajo biti izpolnjeni
+            const mapFilter = ['all'];
+
+            // 1. Leto izgradnje
+            mapFilter.push(['>=', ['coalesce', ['get', 'LETO_IZGRA'], 0], yMin]);
+            mapFilter.push(['<=', ['coalesce', ['get', 'LETO_IZGRA'], 2100], yMax]);
+
+            // 2. Število nadstropij (uporabljamo STEVILO_ET, ki v podatkih predstavlja etaže)
+            mapFilter.push(['>=', ['coalesce', ['get', 'STEVILO_ET'], 0], fMin]);
+            if (fMax < 20) {
+                mapFilter.push(['<=', ['coalesce', ['get', 'STEVILO_ET'], 1000], fMax]);
+            }
+
+            // 3. Bruto Tlorisna Površina (Če je max 5000, vključimo vse >= aMin)
+            mapFilter.push(['>=', ['coalesce', ['get', 'BRUTO_TLOR'], 0], aMin]);
+            if (aMax < 5000) {
+                mapFilter.push(['<=', ['coalesce', ['get', 'BRUTO_TLOR'], 1000000], aMax]);
+            }
+
+            // 4. Komunalni priključki (1 = prisotno)
+            if (filterInputs.water.checked) mapFilter.push(['==', ['coalesce', ['get', 'VODOVOD'], 0], 1]);
+            if (filterInputs.sewage.checked) mapFilter.push(['==', ['coalesce', ['get', 'KANALIZACI'], 0], 1]);
+            if (filterInputs.elec.checked) mapFilter.push(['==', ['coalesce', ['get', 'ELEKTRIKA'], 0], 1]);
+            if (filterInputs.gas.checked) mapFilter.push(['==', ['coalesce', ['get', 'PLIN'], 0], 1]);
+
+            // 5. Poplavna ogroženost (status smo dodali s Python skripto)
+            if (floodRisk !== 'all') {
+                mapFilter.push(['==', ['coalesce', ['get', 'poplava_status'], 0], parseInt(floodRisk)]);
+            }
+
+            // Tukaj vnesite IDs vaših Mapbox slojev
+            const layersToUpdate = ['stavbe-3d', 'stavbe-fill', 'stavbe-line'];
+
+            layersToUpdate.forEach(layerId => {
+                if (map.getLayer(layerId)) {
+                    map.setFilter(layerId, mapFilter);
+                }
+            });
+        }
+
+        // Poslušajmo spremembe na vseh filtrih za takojšnje procesiranje
+        Object.values(filterInputs).forEach(input => {
+            if (input.type === 'range') {
+                input.addEventListener('input', applyMapboxFilters);
+            } else {
+                input.addEventListener('change', applyMapboxFilters);
+            }
+        });
+
+        // --- 7. LOGIKA ZA STRANSKI PANEL IN AI SIMULACIJO ---
+
+        // Prikaz in oblikovanje JSON podatkov
+        function updateRawDataDisplay(properties) {
+            const display = document.getElementById('rawDataDisplay');
+            // Odstranimo tehnične in EID atribute za lepši prikaz
+            const dataToDisplay = { ...properties };
+            delete dataToDisplay.ai_prompt;
+            delete dataToDisplay.naslov_human;
+            delete dataToDisplay.EID_STAVBA;
+            delete dataToDisplay.EID;
+
+            display.textContent = JSON.stringify(dataToDisplay, null, 2);
+        }
+
+        // Elementi za AI
+        const generateBtn = document.getElementById('generateBtn');
+        const btnText = document.getElementById('btnText');
+        const spinner = document.getElementById('spinner');
+        const aiOutput = document.getElementById('aiOutput');
+        const cursor = document.getElementById('cursor');
+
+        let typingInterval;
+
+        // Klik na gumb za AI razlago
+        generateBtn.addEventListener('click', async () => {
+            if (!selectedParcelData) return;
+
+            // 6.1 Posodobitev stanja vmesnika (Nalaganje)
+            generateBtn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'block';
+            aiOutput.innerHTML = '';
+            cursor.style.display = 'none';
+
+            let textToType = "Napaka pri branju podatkov o lokaciji.";
+
+            try {
+                // 6.2 Priprava klica na Gemini API
+                // SECURITY CRITICAL: Zamenjaj ta placeholder s svojim dejanskim Gemini ključem
+                const GEMINI_API_KEY = 'gemini_api_key';
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+                // Priprava prompta
+                const promptText = `Ti si AI asistent za interaktivno 4D karto Ljubljane.
+
+Tvoja naloga je, da iz podatkov o stavbi pripraviš KRATEK, JASEN in UPORABNIKU RAZUMLJIV povzetek v slovenščini.
+
+Pravila:
+- Piši izključno v alinejah, po vsaki alineji pojdi v novo vrstico, kot v tem primeru, ko to pišem.
+- Uporabi preprost in naraven jezik.
+- Ne izpisuj vseh surovih atributov.
+- Izpostavi samo pomembne informacije za običajnega uporabnika.
+- Razloži tehnične podatke v razumljivi obliki.
+- Če podatek manjka ali je null, ga ignoriraj.
+- Ne omenji internih imen atributov (npr. KO_ID, VISINA_H2).
+- Če je objekt v poplavnem območju, to posebej poudari.
+- Dodaj kratko interpretacijo, ne samo surovih števil.
+- Ne izmišljaj si podatkov, ki niso podani.
+
+Podatki o stavbi:
+{{BUILDING_DATA}}
+
+Oblika odgovora:
+
+- Naslov stavbe
+- Leto izgradnje in morebitne obnove
+- Tip in velikost/višina stavbe
+- Število etaž in stanovanj
+- Komunalna opremljenost
+- Varnostni oziroma okoljski podatki
+- Kratek zaključek o objektu
+
+
+Primer stila odgovora:
+
+- Stavba se nahaja na naslovu ...
+- Objekt je bil zgrajen leta ...
+- Stavba ima ... etaž in približno ... stanovanj.
+- Objekt je priključen na vodovod in kanalizacijo.
+- Po razpoložljivih podatkih stavba ni na poplavnem območju.
+- Gre za tipično večstanovanjsko stavbo iz obdobja,
+- 
+                ${JSON.stringify(selectedParcelData)}`;
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: promptText }] }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data && data.candidates && data.candidates.length > 0) {
+                    textToType = data.candidates[0].content.parts[0].text;
+                } else {
+                    console.warn("Gemini API Error, using fallback:", data);
+                    textToType = "Za prikaz prave AI analize morate v kodo vstaviti veljaven Gemini API ključ.";
+                }
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                textToType = "Napaka v omrežju pri klicu AI storitve. Poskrbite, da imate veljaven API ključ in internetno povezavo.";
+            }
+
+            // 6.3 Posodobitev stanja vmesnika (Konec nalaganja)
+            btnText.style.display = 'block';
+            spinner.style.display = 'none';
+            generateBtn.disabled = false;
+            cursor.style.display = 'inline-block';
+
+            // 6.4 Začetek animacije tipkanja (Typewriter)
+            typeWriter(textToType.trim());
+        });
+
+        // Funkcija za animacijo tipkanja
+        function typeWriter(text) {
+            // Počisti morebitno prejšnjo animacijo
+            if (typingInterval) clearInterval(typingInterval);
+
+            aiOutput.innerHTML = '';
+            aiOutput.style.color = 'var(--text-main)';
+            aiOutput.style.fontStyle = 'normal';
+
+            let i = 0;
+            typingInterval = setInterval(() => {
+                if (i < text.length) {
+                    aiOutput.innerHTML += text.charAt(i);
+                    i++;
+
+                    // Avtomatski "scroll" na dno polja, če je besedila preveč
+                    const explanationBox = document.querySelector('.explanation-box');
+                    explanationBox.scrollTop = explanationBox.scrollHeight;
+                } else {
+                    clearInterval(typingInterval);
+                    // Ko konča s tipkanjem, lahko kurzor ostane in utripa
+                }
+            }, 30); // Hitrost tipkanja (30ms na črko)
+        }
+    </script>
+</body>
+
+</html>
